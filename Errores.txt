@@ -1,0 +1,112 @@
+package org.acme.demo.service;
+
+
+import java.io.File;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.Statement;
+import java.text.DateFormat;
+import java.util.Date;
+import java.util.Map;
+import java.util.Properties;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.FileHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+public class Demo {
+    //Al declarar static los parametros se debe inicializar en la declaracion o no hacerlo static esto aplicar para todos los parametros de la clase
+    //Refactorizacion: eliminar el modificador static
+    private static boolean logToFile;
+    private static boolean logToConsole;
+    private static boolean logMessage;
+    private static boolean logWarning;
+    private static boolean logError;
+    private static boolean logToDatabase;
+    private boolean initialized;//Esta linea no se usa
+    private static Map dbParams;
+    private static Logger logger;
+
+    public Demo(boolean logToFileParam, boolean logToConsoleParam, boolean logToDatabaseParam,
+                boolean logMessageParam, boolean logWarningParam, boolean logErrorParam, Map dbParamsMap) //Hay que agregarle al la firma del metodo "throws Exception " pues si no se obtiene error{
+        logger = Logger.getLogger("MyLog");
+        logError = logErrorParam;
+        logMessage = logMessageParam;
+        logWarning = logWarningParam;
+        logToDatabase = logToDatabaseParam;
+        logToFile = logToFileParam;
+        logToConsole = logToConsoleParam;
+        dbParams = dbParamsMap;
+    }
+//La complejidad cognitiva del metodo esta alta se debe encapsular codigo
+    public static void LogMessage(String messageText, boolean message, boolean warning, boolean error) throws Exception {
+        messageText.trim();//El resultado del trim no se utiliza //Refactorizacion: eliminar esta linea de codigo
+        if (messageText == null || messageText.length() == 0) {
+            return; //Solo se sale del metodo, se deberia manejar alguna repsuesta
+        }
+        if (!logToConsole && !logToFile && !logToDatabase) {
+            throw new Exception("Invalid configuration");
+        }
+        if ((!logError && !logMessage && !logWarning) || (!message && !warning && !error)) {
+            throw new Exception("Error or Warning or Message must be specified");
+        }
+//Aqui se viola el principio SOLID de Responsabilidad única, la conexion a base de datos no la debería manejar la misma clase que hace el resto del procesamiento.
+        Connection connection = null;
+        Properties connectionProps = new Properties();
+        connectionProps.put("user", dbParams.get("userName")); //Se esta poniendo el user y pass directo en el codigo
+        connectionProps.put("password", dbParams.get("password"));//Se esta poniendo el user y pass directo en el codigo
+
+        connection = DriverManager.getConnection("jdbc:" + dbParams.get("dbms") + "://" + dbParams.get("serverName")
+                + ":" + dbParams.get("portNumber") + "/", connectionProps);//Se deberia usar un try catch aquí y cerrar la coneccion en el finally
+
+        int t = 0;
+        if (message && logMessage) {
+            t = 1;
+        }
+
+        if (error && logError) {
+            t = 2;
+        }
+
+        if (warning && logWarning) {
+            t = 3;
+        }
+
+        Statement stmt = connection.createStatement();
+
+        String l = null;//Esta variable no se utiliza
+        File logFile = new File(dbParams.get("logFileFolder") + "/logFile.txt");
+        if (!logFile.exists()) {
+            logFile.createNewFile();//no se maneja el valor que devuelve la creacion del archivo
+        }
+
+        FileHandler fh = new FileHandler(dbParams.get("logFileFolder") + "/logFile.txt");
+        ConsoleHandler ch = new ConsoleHandler();
+
+        if (error && logError) {
+            l = l + "error " + DateFormat.getDateInstance(DateFormat.LONG).format(new Date()) + messageText; //Error pues la variable esta inicializada en null
+        }
+
+        if (warning && logWarning) {
+            l = l + "warning " +DateFormat.getDateInstance(DateFormat.LONG).format(new Date()) + messageText;//Error pues la variable esta inicializada en null
+        }
+
+        if (message && logMessage) {
+            l = l + "message " +DateFormat.getDateInstance(DateFormat.LONG).format(new Date()) + messageText;//Error pues la variable esta inicializada en null
+        }
+//La variable l no se utiliza en el codigo
+        if(logToFile) {
+            logger.addHandler(fh);
+            logger.log(Level.INFO, messageText);
+        }
+
+        if(logToConsole) {
+            logger.addHandler(ch);
+            logger.log(Level.INFO, messageText);
+        }
+
+        if(logToDatabase) {
+            stmt.executeUpdate("insert into Log_Values('" + message + "', " + String.valueOf(t) + ")");//La consulta no se construye de manera correcta insert into(colums)Values(values)
+        }
+    }
+}

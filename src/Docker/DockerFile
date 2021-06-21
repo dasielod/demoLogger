@@ -1,0 +1,9 @@
+FROM adoptopenjdk/openjdk11:jdk-11.0.7_10-alpine-slim
+
+WORKDIR /app/
+
+# Copiamos el JAR de nuestra aplicación a la imagen Docker
+COPY out/artifacts/LoggerProject_jar/LoggerProject.jar .
+
+# Corremos el archivo JAR
+CMD ["java", "-cp", "LoggerProject.jar", "DemoLoggerApplication.Main"]
